@@ -22,6 +22,7 @@ import datetime
 # If sonarr, radarr or spreadsheet data file is missing, prompt user to provide the information
 # Run arguments to change information stored
 # --help argument to display help
+# Setup command which creates the spreadsheet with correct blank format
 
 
 #################################
