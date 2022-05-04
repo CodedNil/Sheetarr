@@ -17,10 +17,11 @@ import datetime
 #################################
 
 # Automate the remover script to pull from sheet, if text is coloured anything but default black, proceed with removal, make sure to reset formatting after this
-# Rename sum sheet to info
 # Reimplement dupe checker
+# Reimplement info page details, count series and movies + sizes at top
 
 # If sonarr, radarr or spreadsheet data file is missing, prompt user to provide the information
+# Make discord optional and add readme info about it
 # Run arguments to change information stored
 # --help argument to display help
 
@@ -31,6 +32,8 @@ import datetime
 # Set resolution drop down choices
 # Set top bar text and text sizes
 # Set the alternating background colour
+
+# Readme improvements
 
 
 #################################
@@ -427,7 +430,7 @@ for sheet in sheetsData['sheets']:
 		'rows': []
 	}
 
-	if sheetTitle != 'Info' and sheetTitle != 'Sum':
+	if sheetTitle != 'Info':
 		# Get the data from the sheet
 		startRow = lstd(sheet['data'][0], 'startRow', 0)
 		startColumn = lstd(sheet['data'][0], 'startColumn', 0)
