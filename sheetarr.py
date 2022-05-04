@@ -8,7 +8,7 @@ import time
 import os
 import string
 import pyarr
-from colorama import Fore, Back, Style
+from colorama import Fore, Style
 import requests
 import datetime
 
@@ -18,11 +18,19 @@ import datetime
 
 # Automate the remover script to pull from sheet, if text is coloured anything but default black, proceed with removal, make sure to reset formatting after this
 # Rename sum sheet to info
+# Reimplement dupe checker
 
 # If sonarr, radarr or spreadsheet data file is missing, prompt user to provide the information
 # Run arguments to change information stored
 # --help argument to display help
+
 # Setup command which creates the spreadsheet with correct blank format
+
+# Make the sheets non destructive, if rows added or deleted etc, always readjust them
+# Reset row/col sizes
+# Set resolution drop down choices
+# Set top bar text and text sizes
+# Set the alternating background colour
 
 
 #################################
