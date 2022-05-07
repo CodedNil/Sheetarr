@@ -17,8 +17,9 @@ import datetime
 #################################
 
 # Automate the remover script to pull from sheet, if text is coloured anything but default black, proceed with removal, make sure to reset formatting after this
-# Reimplement dupe checker
-# Reimplement info page details, count series and movies + sizes at top
+
+# Reimplement only running it every 5 minutes if a change has been made, or every 1 hour else
+# Local log.txt file which logs every debug change, with append write mode
 
 # If sonarr, radarr or spreadsheet data file is missing, prompt user to provide the information
 # Make discord optional and add readme info about it
@@ -137,8 +138,8 @@ qualityResolutions = {'SD': 480, '720p': 720, '1080p': 1080, '2160p': 2160, '720
 ######## GRAB SITES DATA ########
 #################################
 
-sonarrlist = sonarrapi.get_series()
-radarrlist = radarrapi.get_movie()
+sonarrList = sonarrapi.get_series()
+radarrList = radarrapi.get_movie()
 
 # Search against sonarr/radarr
 def SearchAgainstSite(name, wantedres, isseries):
@@ -156,7 +157,7 @@ def SearchAgainstSite(name, wantedres, isseries):
 
 	# Find if item is already on sonarr/radarr
 	found = False
-	for item in isseries and sonarrlist or radarrlist:
+	for item in isseries and sonarrList or radarrList:
 		if TitleMatch(name, item['title'], item['year']):
 			found = True
 			return 'found', item
@@ -268,8 +269,8 @@ def ProcessSheetMedia(gsheet, title, isSeries, cellData):
 	wantedStatusNote = ''
 	wantedStatusTextColor = [0, 0, 0]
 
-	fileSize = 0 # To return
-	hasFile = 0 # To return
+	fileSize = 0 # Size of media file(s)
+	hasFile = 0 # 0 if no file, 1 if file exists
 
 	# Search the sites for the media
 	if mediaTitle != '':
@@ -286,7 +287,7 @@ def ProcessSheetMedia(gsheet, title, isSeries, cellData):
 
 		# Get required notes
 		if result == 'failedmatch':
-			# Couldn't match message to show alternative names
+			# Couldn't match message to series alternative names
 			wantedMainNote = "Couldn't match, did you mean\n" + '\n'.join(item)
 		elif result == 'adding':
 			# Adding message
@@ -301,7 +302,7 @@ def ProcessSheetMedia(gsheet, title, isSeries, cellData):
 		# Get required status notes
 		if result == 'found':
 			if isSeries:
-				# Get show season episode count and size breakdown
+				# Get series season episode count and size breakdown
 				seasonnotes = []
 				for season in item['seasons']:
 					seasonnumber = str(season['seasonNumber'])
@@ -411,6 +412,36 @@ params = {
 sheetsDict = {}
 sheetsData = gspreadsheet._spreadsheets_get(params)
 
+# Data for series, movies count and sizes
+sheetSeriesData = {}
+sheetMoviesData = {}
+# List for items that are not on the sheet, and items that are duplicates on the sheets
+missingSheetSeries = []
+duplicateSheetSeries = {}
+missingSheetMovies = []
+duplicateSheetMovies = {}
+
+def GetMissingMedia():
+	"""Get lists of series and movies on the site but not on the sheet"""
+	for siteItem in sonarrList:
+		found = False
+		for sheetItem in sheetSeriesData:
+			if TitleMatch(sheetItem, siteItem['title'], siteItem['year']):
+				found = True
+				break
+		if not found:
+			missingSheetSeries.append(siteItem['title'])
+
+	for siteItem in radarrList:
+		found = False
+		for sheetItem in sheetMoviesData:
+			if TitleMatch(sheetItem, siteItem['title'], siteItem['year']):
+				found = True
+				break
+		if not found:
+			missingSheetMovies.append(siteItem['title'])
+
+
 for sheet in sheetsData['sheets']:
 	gsheet = gspreadsheet.get_worksheet_by_id(sheet['properties']['sheetId'])
 	# Get data about the sheet
@@ -430,56 +461,137 @@ for sheet in sheetsData['sheets']:
 		'rows': []
 	}
 
-	if sheetTitle != 'Info':
-		# Get the data from the sheet
-		startRow = lstd(sheet['data'][0], 'startRow', 0)
-		startColumn = lstd(sheet['data'][0], 'startColumn', 0)
-		rowData = sheet['data'][0]['rowData']
+	# Get the data from the sheet
+	startRow = lstd(sheet['data'][0], 'startRow', 0)
+	startColumn = lstd(sheet['data'][0], 'startColumn', 0)
+	rowData = sheet['data'][0]['rowData']
 
-		totalSeriesSize, totalSeriesFiles, totalSeriesCount = 0, 0, 0
-		totalMoviesSize, totalMoviesFiles, totalMoviesCount = 0, 0, 0
+	totalSeriesSize, totalSeriesFiles, totalSeriesCount = 0, 0, 0
+	totalMoviesSize, totalMoviesFiles, totalMoviesCount = 0, 0, 0
 
-		# Loop through all rows and get indexes
-		for y, row in enumerate(rowData):
-			rowIndex = startRow + y
-			# Write row to dictionary
-			sheetsDict[sheetTitle]['rows'].append({'cells': []})
+	if sheetTitle == 'Info':
+		# Remove all items that are only on one sheet
+		duplicateSheetSeries = {i:j for i,j in duplicateSheetSeries.items() if len(j) > 1}
+		duplicateSheetMovies = {i:j for i,j in duplicateSheetMovies.items() if len(j) > 1}
+		GetMissingMedia()
 
-			# Loop through all columns and get indexes
-			for x, column in enumerate(row['values']):
-				columnIndex = startColumn + x
+	# Loop through all rows and get indexes
+	for y, row in enumerate(rowData):
+		rowIndex = startRow + y
+		# Write row to dictionary
+		sheetsDict[sheetTitle]['rows'].append({'cells': []})
 
-				# Get cell data
-				formattedValue = lstd(column, 'formattedValue')
-				note = lstd(column, 'note')
-				hyperlink = lstd(column, 'hyperlink')
-				# Get text rgb
-				textColor = [0, 0, 0]
-				if 'userEnteredFormat' in column and 'textFormat' in column['userEnteredFormat'] and 'foregroundColorStyle' in column['userEnteredFormat']['textFormat']:
-					textColorList = column['userEnteredFormat']['textFormat']['foregroundColorStyle']['rgbColor']
-					textColor = [lstd(textColorList, 'red', 0), lstd(textColorList, 'green', 0), lstd(textColorList, 'blue', 0)]
+		# Loop through all columns and get indexes
+		for x, column in enumerate(row['values']):
+			columnIndex = startColumn + x
 
-				# Write data to dictionary
-				sheetsDict[sheetTitle]['rows'][rowIndex]['cells'].append({
-					'cell': n2a(columnIndex) + str(rowIndex + 1),
-					'text': formattedValue,
-					'note': note,
-					'hyperlink': hyperlink,
-					'textColor': textColor
-				})
+			# Get cell data
+			formattedValue = lstd(column, 'formattedValue')
+			note = lstd(column, 'note')
+			hyperlink = lstd(column, 'hyperlink')
+			# Get text rgb
+			textColor = [0, 0, 0]
+			if 'userEnteredFormat' in column and 'textFormat' in column['userEnteredFormat'] and 'foregroundColorStyle' in column['userEnteredFormat']['textFormat']:
+				textColorList = column['userEnteredFormat']['textFormat']['foregroundColorStyle']['rgbColor']
+				textColor = [lstd(textColorList, 'red', 0), lstd(textColorList, 'green', 0), lstd(textColorList, 'blue', 0)]
 
+			# Write data to dictionary
+			sheetsDict[sheetTitle]['rows'][rowIndex]['cells'].append({
+				'cell': n2a(columnIndex) + str(rowIndex + 1),
+				'text': formattedValue,
+				'note': note,
+				'hyperlink': hyperlink,
+				'textColor': textColor
+			})
+
+		if sheetTitle == 'Info':
+			# Process the info sheet, requires being last processed
+			if rowIndex > 3:
+				rowData = sheetsDict[sheetTitle]['rows'][rowIndex]['cells']
+				# Set missing series
+				removeSeries = (len(missingSheetSeries) > rowIndex - 4) and missingSheetSeries[rowIndex - 4] or ''
+				if rowData[0]['text'] != removeSeries:
+					WriteSheet(gsheet, sheetTitle, 'update', rowData[0]['cell'], removeSeries)
+
+				# Set dupe series text or nothing
+				dupeSeriesName, dupeSeriesSheets, dupeSeriesText = '', [], ''
+				if len(duplicateSheetSeries) > rowIndex - 4:
+					dupeSeriesName, dupeSeriesSheets = list(duplicateSheetSeries.keys())[0], list(duplicateSheetSeries.values())[0]
+					dupeSeriesText = dupeSeriesName + ' (' + ', '.join(dupeSeriesSheets) + ')'
+				if rowData[1]['text'] != dupeSeriesText:
+					WriteSheet(gsheet, sheetTitle, 'update', rowData[1]['cell'], dupeSeriesText)
+
+				# Set missing movies
+				removeMovies = (len(missingSheetMovies) > rowIndex - 4) and missingSheetMovies[rowIndex - 4] or ''
+				if rowData[2]['text'] != removeMovies:
+					WriteSheet(gsheet, sheetTitle, 'update', rowData[2]['cell'], removeMovies)
+
+				# Set dupe movies text or nothing
+				dupeMoviesName, dupeMoviesSheets, dupeMoviesText = '', [], ''
+				if len(duplicateSheetMovies) > rowIndex - 4:
+					dupeMoviesName, dupeMoviesSheets = list(duplicateSheetMovies.keys())[0], list(duplicateSheetMovies.values())[0]
+					dupeMoviesText = dupeMoviesName + ' (' + ', '.join(dupeMoviesSheets) + ')'
+				if rowData[3]['text'] != dupeMoviesText:
+					WriteSheet(gsheet, sheetTitle, 'update', rowData[3]['cell'], dupeMoviesText)
+
+		else:
+			# For every non info sheet
 			if rowIndex > 0:
 				# Series cells
-				size, file, count = ProcessSheetMedia(gsheet, sheetTitle, True, sheetsDict[sheetTitle]['rows'][rowIndex]['cells'][0:3])
-				totalSeriesSize += size
-				totalSeriesFiles += file
-				totalSeriesCount += count
-				# Movies cells
-				size, file, count = ProcessSheetMedia(gsheet, sheetTitle, False, sheetsDict[sheetTitle]['rows'][rowIndex]['cells'][3:6])
-				totalMoviesSize += size
-				totalMoviesFiles += file
-				totalMoviesCount += count
+				seriesSize, seriesFile, seriesCount = ProcessSheetMedia(gsheet, sheetTitle, True, sheetsDict[sheetTitle]['rows'][rowIndex]['cells'][0:3])
+				totalSeriesSize += seriesSize
+				totalSeriesFiles += seriesFile
+				totalSeriesCount += seriesCount
+				seriesName = lstd(sheetsDict[sheetTitle]['rows'][rowIndex]['cells'][0], 'text')
+				if seriesName != '':
+					if seriesName in duplicateSheetSeries:
+						duplicateSheetSeries[seriesName].append(sheetTitle)
+					else:
+						duplicateSheetSeries[seriesName] = [sheetTitle]
+					sheetSeriesData[seriesName] = {
+						'size': seriesSize,
+						'files': seriesFile
+					}
 
+				# Movies cells
+				moviesSize, moviesFile, moviesCount = ProcessSheetMedia(gsheet, sheetTitle, False, sheetsDict[sheetTitle]['rows'][rowIndex]['cells'][3:6])
+				totalMoviesSize += moviesSize
+				totalMoviesFiles += moviesFile
+				totalMoviesCount += moviesCount
+				moviesName = lstd(sheetsDict[sheetTitle]['rows'][rowIndex]['cells'][3], 'text')
+				if moviesName != '':
+					if moviesName in duplicateSheetMovies:
+						duplicateSheetMovies[moviesName].append(sheetTitle)
+					else:
+						duplicateSheetMovies[moviesName] = [sheetTitle]
+					sheetMoviesData[moviesName] = {
+						'size': moviesSize,
+						'files': moviesFile
+					}
+
+	if sheetTitle == 'Info':
+		# Process the info sheet, requires being last processed
+		seriesCount = len(sheetSeriesData)
+		seriesSize, seriesFiles = 0, 0
+		for name in sheetSeriesData:
+			seriesSize += sheetSeriesData[name]['size']
+			seriesFiles += sheetSeriesData[name]['files']
+
+		moviesCount = len(sheetMoviesData)
+		moviesSize, moviesFiles = 0, 0
+		for name in sheetMoviesData:
+			moviesSize += sheetMoviesData[name]['size']
+			moviesFiles += sheetMoviesData[name]['files']
+
+		wantedTextSeries = str(seriesCount) + ' - ' + str(round(seriesFiles/seriesCount*100)) + '%\n' + str(sizeof_fmt(seriesSize))
+		wantedTextMovies = str(moviesCount) + ' - ' + str(round(moviesFiles/moviesCount*100)) + '%\n' + str(sizeof_fmt(moviesSize))
+
+		if sheetsDict[sheetTitle]['rows'][1]['cells'][0]['text'] != wantedTextSeries:
+			WriteSheet(gsheet, sheetTitle, 'update', 'A2:B2', wantedTextSeries)
+
+		if sheetsDict[sheetTitle]['rows'][1]['cells'][2]['text'] != wantedTextMovies:
+			WriteSheet(gsheet, sheetTitle, 'update', 'C2:D2', wantedTextMovies)
+	else:
 		# First row, push the total sizes to the sheet
 		wantedTextSeries = totalSeriesCount == 0 and 'N/A' or str(totalSeriesCount) + ' - ' + str(round(totalSeriesFiles/totalSeriesCount*100)) + '%\n' + str(sizeof_fmt(totalSeriesSize))
 		wantedTextMovies = totalMoviesCount == 0 and 'N/A' or str(totalMoviesCount) + ' - ' + str(round(totalMoviesFiles/totalMoviesCount*100)) + '%\n' + str(sizeof_fmt(totalMoviesSize))
@@ -489,9 +601,3 @@ for sheet in sheetsData['sheets']:
 
 		if sheetsDict[sheetTitle]['rows'][0]['cells'][5]['text'] != wantedTextMovies:
 			WriteSheet(gsheet, sheetTitle, 'update', 'F1', wantedTextMovies)
-
-		# TEMP CLEAR
-		if sheetsDict[sheetTitle]['rows'][0]['cells'][2]['note'] != '':
-			WriteSheet(gsheet, sheetTitle, 'insert_note', 'C1', '')
-		if sheetsDict[sheetTitle]['rows'][0]['cells'][5]['note'] != '':
-			WriteSheet(gsheet, sheetTitle, 'insert_note', 'F1', '')
