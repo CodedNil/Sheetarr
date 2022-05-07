@@ -18,7 +18,6 @@ import datetime
 
 # Automate the remover script to pull from sheet, if text is coloured anything but default black, proceed with removal, make sure to reset formatting after this
 
-# Reimplement only running it every 5 minutes if a change has been made, or every 1 hour else
 # Local log.txt file which logs every debug change, with append write mode
 
 # If sonarr, radarr or spreadsheet data file is missing, prompt user to provide the information
@@ -40,6 +39,10 @@ import datetime
 #################################
 ######### CONFIGURATION #########
 #################################
+
+# Manage auto run at 20 minute intervals with
+# crontab -e
+# */20 * * * * /DIRECTORY/run_sheetsmanager.sh
 
 shouldPullResolution = False # Should the resolution be pulled from the sites or pushed to them
 
