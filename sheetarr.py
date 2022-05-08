@@ -18,8 +18,6 @@ import datetime
 
 # Automate the remover script to pull from sheet, if text is coloured anything but default black, proceed with removal, make sure to reset formatting after this
 
-# Local log.txt file which logs every debug change, with append write mode
-
 # If sonarr, radarr or spreadsheet data file is missing, prompt user to provide the information
 # Make discord optional and add readme info about it
 # Run arguments to change information stored
@@ -45,6 +43,7 @@ import datetime
 # */20 * * * * /DIRECTORY/run_sheetsmanager.sh
 
 shouldPullResolution = False # Should the resolution be pulled from the sites or pushed to them
+debugMessageLevel = 0 # 0 = all sheet changes, 1 = major and minor changes to sites, 2 = only adding and removing from sites
 
 
 #################################
@@ -121,12 +120,12 @@ if os.path.isfile('cache.json'):
 		cache['quota'] = quotaList
 		SaveCache()
 
-def PostDiscord(colour, message):
+def PostDiscord(colour, message, severity=0):
 	"""Posts a discord message"""
 	# Send message once per day max
 	debugmsg = datetime.date.today().strftime('%Y-%m-%d') + ' - ' + message
 	print(colour + debugmsg + Style.RESET_ALL)
-	if debugmsg not in cache['discord']:
+	if severity >= debugMessageLevel and debugmsg not in cache['discord']:
 		requests.post(discordWebhook, headers={"Content-Type": "application/json"}, data=json.dumps({'content': debugmsg}))
 		cache['discord'].append(debugmsg)
 		SaveCache()
@@ -183,18 +182,18 @@ def SearchAgainstSite(name, wantedres, isseries):
 					wantedquality = qualityFromProfile[wantedres]
 					sonarrapi.add_series(response[0]['tvdbId'], wantedquality, '/tv', season_folder=True, monitored=True, search_for_missing_episodes=True)
 					# Send debug message to discord
-					PostDiscord(Fore.MAGENTA, 'Adding to Sonarr: ' + name)
+					PostDiscord(Fore.MAGENTA, 'Adding to Sonarr: ' + name, 2)
 				else:
 					# Add result to radarr
 					wantedquality = qualityFromProfile[wantedres]
 					radarrapi.add_movie(response[0]['tmdbId'], wantedquality, '/movies', monitored=True, search_for_movie=True, tmdb=True)
 					# Send debug message to discord
-					PostDiscord(Fore.MAGENTA, 'Adding to Radarr: ' + name)
+					PostDiscord(Fore.MAGENTA, 'Adding to Radarr: ' + name, 2)
 
 				return 'adding', None
 			else:
 				# Search result found but not exact match
-				print(Fore.RED + 'FAILED: ', name, ' '*(50 - len(titleyear)), titleyear + Style.RESET_ALL)
+				PostDiscord(Fore.RED, 'FAILED: ' + name + ' '*(50 - len(titleyear)) + titleyear, 1)
 
 				# Add first few results to match data
 				matches = []
@@ -204,7 +203,7 @@ def SearchAgainstSite(name, wantedres, isseries):
 				return 'failedmatch', matches
 		else:
 			# Search result not found
-			print(Fore.RED + 'FAILED ' + name + Style.RESET_ALL)
+			PostDiscord(Fore.RED, 'FAILED ' + name, 1)
 			return 'failed', None
 
 
@@ -223,7 +222,7 @@ def CalculateQuota():
 def WriteSheet(gsheet, title, func, cell, *args):
 	"""Writes to the sheet with the given function and arguments"""
 	value = json.dumps([item for item in args]).replace('\n', ' ')
-	print(Fore.YELLOW + title + ' ' + func + ' ' + cell + ' : ' + value + Style.RESET_ALL)
+	PostDiscord(Fore.YELLOW, title + ' ' + func + ' ' + cell + ' : ' + value, 0)
 
 	# Wait for quota to be below limit
 	currentquota = CalculateQuota()
@@ -328,7 +327,7 @@ def ProcessSheetMedia(gsheet, title, isSeries, cellData):
 				else:
 					radarrapi.upd_movie(params)
 				# Send debug message to discord
-				PostDiscord(Fore.MAGENTA, 'Adjusting {site} resolution: {media} from {old} to {new}'.format(site = isSeries and 'Sonarr' or 'Radarr', media = mediaTitle, old = cellData[1]['text'], new = wantedResolutionText))
+				PostDiscord(Fore.MAGENTA, 'Adjusting {site} resolution: {media} from {old} to {new}'.format(site = isSeries and 'Sonarr' or 'Radarr', media = mediaTitle, old = cellData[1]['text'], new = wantedResolutionText), 1)
 				
 		# Get required hyperlink value
 		if result == 'found':
