@@ -11,6 +11,7 @@ import pyarr
 from colorama import Fore, Style
 import requests
 import datetime
+import titlecase
 
 #################################
 ############# TODOS #############
@@ -179,16 +180,18 @@ def SearchAgainstSite(name, wantedres, isseries):
 				# Search result found and matches
 				if isseries:
 					# Add result to sonarr
-					wantedquality = qualityFromProfile[wantedres]
-					sonarrapi.add_series(response[0]['tvdbId'], wantedquality, '/tv', season_folder=True, monitored=True, search_for_missing_episodes=True)
-					# Send debug message to discord
-					PostDiscord(Fore.MAGENTA, 'Adding to Sonarr: ' + name, 2)
+					if wantedres in qualityFromProfile:
+						wantedQuality = qualityFromProfile[wantedres]
+						sonarrapi.add_series(response[0]['tvdbId'], wantedQuality, '/tv', season_folder=True, monitored=True, search_for_missing_episodes=True)
+						# Send debug message to discorde
+						PostDiscord(Fore.MAGENTA, 'Adding to Sonarr: ' + name, 2)
 				else:
 					# Add result to radarr
-					wantedquality = qualityFromProfile[wantedres]
-					radarrapi.add_movie(response[0]['tmdbId'], wantedquality, '/movies', monitored=True, search_for_movie=True, tmdb=True)
-					# Send debug message to discord
-					PostDiscord(Fore.MAGENTA, 'Adding to Radarr: ' + name, 2)
+					if wantedres in qualityFromProfile:
+						wantedQuality = qualityFromProfile[wantedres]
+						radarrapi.add_movie(response[0]['tmdbId'], wantedQuality, '/movies', monitored=True, search_for_movie=True, tmdb=True)
+						# Send debug message to discord
+						PostDiscord(Fore.MAGENTA, 'Adding to Radarr: ' + name, 2)
 
 				return 'adding', None
 			else:
@@ -318,16 +321,18 @@ def ProcessSheetMedia(gsheet, title, isSeries, cellData):
 			wantedResolutionText = qualityProfiles[item['qualityProfileId']] # The resolution of the media on the site
 			if wantedResolutionText != cellData[1]['text'] and not shouldPullResolution:
 				# Adjust resolution on sonarr or radarr
-				wantedQuality = qualityFromProfile[cellData[1]['text']]
-				params = item
-				params['profileId'] = wantedQuality
-				params['qualityProfileId'] = wantedQuality
-				if isSeries:
-					sonarrapi.upd_series(params)
-				else:
-					radarrapi.upd_movie(params)
-				# Send debug message to discord
-				PostDiscord(Fore.MAGENTA, 'Adjusting {site} resolution: {media} from {old} to {new}'.format(site = isSeries and 'Sonarr' or 'Radarr', media = mediaTitle, old = cellData[1]['text'], new = wantedResolutionText), 1)
+				cellQuality = cellData[1]['text']
+				if cellQuality in qualityFromProfile:
+					wantedQuality = qualityFromProfile[cellData[1]['text']]
+					params = item
+					params['profileId'] = wantedQuality
+					params['qualityProfileId'] = wantedQuality
+					if isSeries:
+						sonarrapi.upd_series(params)
+					else:
+						radarrapi.upd_movie(params)
+					# Send debug message to discord
+					PostDiscord(Fore.MAGENTA, 'Adjusting {site} resolution: {media} from {old} to {new}'.format(site = isSeries and 'Sonarr' or 'Radarr', media = mediaTitle, old = cellData[1]['text'], new = wantedResolutionText), 1)
 				
 		# Get required hyperlink value
 		if result == 'found':
@@ -376,7 +381,7 @@ def ProcessSheetMedia(gsheet, title, isSeries, cellData):
 	if cellData[0]['note'] != wantedMainNote:
 		WriteSheet(gsheet, title, 'insert_note', cellData[0]['cell'], wantedMainNote)
 	if cellData[0]['hyperlink'] != wantedMainHyperlink:
-		WriteSheet(gsheet, title, 'update_acell', cellData[0]['cell'], '=HYPERLINK("' + wantedMainHyperlink + '", "' + mediaTitle + '")')
+		WriteSheet(gsheet, title, 'update_acell', cellData[0]['cell'], '=HYPERLINK("' + wantedMainHyperlink + '", "' + titlecase.titlecase(mediaTitle) + '")')
 	if not fuzzyMatchList(cellData[0]['textColor'], wantedMainTextColor):
 		WriteSheet(gsheet, title, 'format', cellData[0]['cell'], {'textFormat': {'bold': True, 'foregroundColor': {'red': wantedMainTextColor[0], 'green': wantedMainTextColor[1], 'blue': wantedMainTextColor[2]}, 'link': {'uri': wantedMainHyperlink}}})
 
