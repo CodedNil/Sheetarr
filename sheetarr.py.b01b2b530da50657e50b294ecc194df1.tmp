@@ -278,6 +278,7 @@ def SearchAgainstSite(name, wantedres, isseries):
                         wantedQuality = qualityFromProfile[wantedres]
                         radarrresp = radarrapi.add_movie(
                             response[0]['tmdbId'], wantedQuality, '/movies', monitored=True, search_for_movie=True, tmdb=True)
+                        print(radarrresp)
                         # Send debug message to discord
                         PostDiscord(Fore.MAGENTA, 'Adding to Radarr', name)
 
@@ -653,10 +654,7 @@ for sheet in sheetsData['sheets']:
                         if answer == 'y':
                             id = missingSheetSeriesIds[rowIndex - 4]
                             print(Fore.RED + 'Removing series: ' + removeSeries + Style.RESET_ALL)
-                            try:
-                                sonarrapi.del_series(id, delete_files=True)
-                            except:
-                                print(Fore.RED + 'Error while removing series: ' + removeSeries + Style.RESET_ALL)
+                            sonarrapi.del_series(id, delete_files=True)
 
                 # Set dupe series text or nothing
                 dupeSeriesName, dupeSeriesSheets, dupeSeriesText = '', [], ''
@@ -684,11 +682,8 @@ for sheet in sheetsData['sheets']:
                         if answer == 'y':
                             id = missingSheetMoviesIds[rowIndex - 4]
                             print(Fore.RED + 'Removing movie: ' + removeMovies + Style.RESET_ALL)
-                            try:
-                                radarrapi.del_movie(id, delete_files=True)
-                            except:
-                                print(Fore.RED + 'Error while removing movie: ' + removeMovies + Style.RESET_ALL)
-
+                            radarrapi.del_movie(id, delete_files=True)
+                            
                 # Set dupe movies text or nothing
                 dupeMoviesName, dupeMoviesSheets, dupeMoviesText = '', [], ''
                 if len(duplicateSheetMovies) > rowIndex - 4:
