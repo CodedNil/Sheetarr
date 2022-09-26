@@ -267,19 +267,22 @@ def SearchAgainstSite(name, wantedres, isseries):
                 if isseries:
                     # Add result to sonarr
                     if wantedres in qualityFromProfile:
-                        wantedQuality = qualityFromProfile[wantedres]
-                        sonarrapi.add_series(response[0]['tvdbId'], wantedQuality, '/tv',
-                                             season_folder=True, monitored=True, search_for_missing_episodes=True)
-                        # Send debug message to discorde
+                        # Send debug message to discord
                         PostDiscord(Fore.MAGENTA, 'Adding to Sonarr', name)
+                        # Add to sonarr
+                        wantedQuality = qualityFromProfile[wantedres]
+                        try:
+                            sonarrapi.add_series(tvdb_id=response[0]['tvdbId'], quality_profile_id=wantedQuality, root_dir='/tv', season_folder=True, monitored=True, search_for_missing_episodes=True)
+                        except:
+                            PostDiscord(Fore.RED, 'Failed to add to Sonarr', name)
                 else:
                     # Add result to radarr
                     if wantedres in qualityFromProfile:
-                        wantedQuality = qualityFromProfile[wantedres]
-                        radarrresp = radarrapi.add_movie(
-                            response[0]['tmdbId'], wantedQuality, '/movies', monitored=True, search_for_movie=True, tmdb=True)
                         # Send debug message to discord
                         PostDiscord(Fore.MAGENTA, 'Adding to Radarr', name)
+                        # Add to radarr
+                        wantedQuality = qualityFromProfile[wantedres]
+                        radarrresp = radarrapi.add_movie(response[0]['tmdbId'], wantedQuality, '/movies', monitored=True, search_for_movie=True, tmdb=True)
 
                 return 'adding', None
             else:
