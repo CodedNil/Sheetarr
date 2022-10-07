@@ -652,7 +652,7 @@ for sheet in sheetsData['sheets']:
                 if removeSeries != '':
                     if '--remove' in sys.argv or '-r' in sys.argv:
                         # Ask user
-                        answer = input('Remove series ' + str(removeSeries + '? (y/N)')).lower()
+                        answer = input('Remove series ' + str(removeSeries + '? (y/N) ')).lower()
                         if answer == 'y':
                             id = missingSheetSeriesIds[rowIndex - 4]
                             print(Fore.RED + 'Removing series: ' + removeSeries + Style.RESET_ALL)
@@ -683,7 +683,7 @@ for sheet in sheetsData['sheets']:
                 if removeMovies != '':
                     if '--remove' in sys.argv or '-r' in sys.argv:
                         # Ask user
-                        answer = input('Remove movie ' + str(removeMovies + '? (y/N)')).lower()
+                        answer = input('Remove movie ' + str(removeMovies + '? (y/N) ')).lower()
                         if answer == 'y':
                             id = missingSheetMoviesIds[rowIndex - 4]
                             print(Fore.RED + 'Removing movie: ' + removeMovies + Style.RESET_ALL)
